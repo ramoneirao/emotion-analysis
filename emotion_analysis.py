@@ -1,4 +1,3 @@
-
 from sklearn.svm import SVC
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.neighbors import KNeighborsClassifier
@@ -8,6 +7,9 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from nltk.tokenize import RegexpTokenizer
 from collections import Counter
 from unicodedata import normalize
+from sklearn.ensemble import AdaBoostClassifier
+from xgboost import XGBClassifier
+from catboost import CatBoostClassifier
 
 import pandas as pd
 import nltk
@@ -61,6 +63,15 @@ def simple_train(classifier_name, X, y):
     elif classifier_name == 'KNN':
         clf = KNeighborsClassifier(n_neighbors = 3).fit(X, y)
         return clf
+    elif classifier_name == 'ADA':
+        clf = AdaBoostClassifier().fit(X, y)
+        return clf
+    elif classifier_name == 'XGB':
+        clf = XGBClassifier().fit(X, y)
+        return clf
+    elif classifier_name == 'CAT':
+        clf = CatBoostClassifier(task_type="CPU", eval_metric = "Accuracy", verbose=1).fit(X, y)
+        return clf
 
 def cv_train(classifier_name, X, y, n_fold=5):
     if classifier_name == 'NB':
@@ -96,6 +107,44 @@ def cv_train(classifier_name, X, y, n_fold=5):
         print(f'K-Nearest Neighbors best accuracy in {n_fold} folds: {clf.best_score_*100}')
         print(10*'==')    
         return clf
+    
+    elif classifier_name == 'ADA':
+        clf = GridSearchCV(estimator  = AdaBoostClassifier(),
+                           param_grid = {'learning_rate': [0.9, 0.8, 0.7, 0.6, 0.5],
+                                         'n_estimators':[10, 50, 100, 500], 
+                                         'algorithm':['SAMME', 'SAMME.R']},
+                           cv         = n_fold).fit(X, y)
+        print(10*'==')
+        print(f'Ada Boost Classifier best parameters: {clf.best_params_}')
+        print(f'Ada Boost Classifier best accuracy in {n_fold} folds: {clf.best_score_*100}')
+        print(10*'==')
+        return clf
+    
+    elif classifier_name == 'XGB':
+        clf = GridSearchCV(estimator  = XGBClassifier(),
+                           param_grid = {'max_depth':[2, 6],
+                                         'min_child_weight':[1,5,15],
+                                         'learning_rate':[0.3, 0.1, 0.03],
+                                         'n_estimators':[100],
+                                         'eval_metric':['mlogloss']},
+                           cv         = n_fold).fit(X, y)
+        print(10*'==')
+        print(f'XG Boost Classifier best parameters: {clf.best_params_}')
+        print(f'XG Boost Classifier best accuracy in {n_fold} folds: {clf.best_score_*100}')
+        print(10*'==')
+        return clf
+    
+    elif classifier_name == 'CAT':
+        clf = GridSearchCV(estimator  = CatBoostClassifier(),
+                           param_grid = {'depth':[4,5,6,7,8,10],
+                                         'learning_rate':[0.01,0.02,0.03,0.04],
+                                         'iterations':[5]},
+                           cv         = n_fold).fit(X, y)
+        print(10*'==')
+        print(f'CAT Boost Classifier best parameters: {clf.best_params_}')
+        print(f'CAT Boost Classifier best accuracy in {n_fold} folds: {clf.best_score_*100}')
+        print(10*'==')
+        return clf
 
 def vectorizer(X, vec_type):
     if vec_type == 'countvectorizer':
@@ -111,7 +160,7 @@ def vectorizer(X, vec_type):
 def dataset_split(X, y, train_size):
     X_train, X_test, y_train, y_test = train_test_split(X, y,
                                                        train_size   = train_size,
-                                                       stratify       = y,
+                                                       stratify     = y,
                                                        random_state = 42,
                                                        shuffle      = True)
     return X_train, X_test, y_train, y_test
@@ -148,7 +197,7 @@ def metrics_evaluation(models_names, list_predict, y_true):
     accuracy    = []
     precision   = []
     recall      = []
-    f_score    = []
+    f_score     = []
     for i in range(len(models_names)):
         accuracy.append(int(accuracy_score(y_true, list_predict[i])*100))
         precision.append(int(precision_score(y_true, list_predict[i], average='macro')*100))
